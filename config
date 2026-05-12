@@ -1,0 +1,12 @@
+# Shader pipeline (keep scanlines last)
+custom-shader = text-shadow.glsl
+custom-shader = text-shine.glsl
+custom-shader = text-gradient.glsl
+custom-shader = scanlines.glsl
+
+# # Example theme/font configuration
+# theme = One Half Dark
+# font-family = Berkeley Mono Trial
+# font-size = 16
+# font-thicken = true
+# font-thicken-strength = 255
