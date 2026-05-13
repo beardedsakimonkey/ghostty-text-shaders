@@ -37,7 +37,7 @@ float textMask(vec3 color)
     vec3 diff = abs(color - iBackgroundColor);
     float channelDelta = max(max(diff.r, diff.g), diff.b);
     float colorDelta = abs(luminance(color) - luminance(iBackgroundColor));
-    return smoothstep(0.01, 0.1, max(channelDelta, colorDelta));
+    return smoothstep(0.08, 0.3, max(channelDelta, colorDelta));
 }
 
 float contrastFromBackground(vec3 color)
