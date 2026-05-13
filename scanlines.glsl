@@ -4,10 +4,10 @@
  */
 
 // Visibility of scanlines on the background.
-const float SCANLINE_BG_STRENGTH = 0.07;
+const float SCANLINE_BG_STRENGTH = 0.05;
 
 // Visibility of scanlines on the foreground text.
-const float SCANLINE_FG_STRENGTH = 0.07;
+const float SCANLINE_FG_STRENGTH = 0.0;
 
 // Scanline frequency independent of the window size.
 const float SCANLINE_PERIOD_PX = 20.0;
