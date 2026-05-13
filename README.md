@@ -14,7 +14,7 @@ preference.
 </p>
 
 <p align="center">
-   <img width="965" height="914" alt="One Half screenshot" src="https://github.com/user-attachments/assets/d9109a40-a597-450a-a600-f20f6c07e53a" />
+   <img width="947" height="872" alt="One Half screenshot" src="https://github.com/user-attachments/assets/85777feb-4134-4d38-ab9c-6539ed3e631f" />
 </p>
 
 ## Installation
