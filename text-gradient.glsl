@@ -16,12 +16,10 @@ const float GRADIENT_STRENGTH_SCALING_MIN_CONTRAST = 0.1;
 // Defines how much contrast from the bg is needed to get a full-strength gradient.
 const float GRADIENT_STRENGTH_SCALING_MAX_CONTRAST = 0.5;
 
-// The position where the gradient reaches min brightness.
-// 0.0 = top of row, 1.0 = bottom of row
-// Swap the start/stop values to reverse the gradient.
+// Gradient is a linear gradient going from the bottom of the row to the top (0-1).
+// Adjust the start/stop values to condense the gradient. Swap them to reverse the gradient.
+// Starting at 0.1 helps keep descenders from getting too dark.
 const float GRADIENT_START = 0.1;
-
-// The position where the gradient reaches max darkness.
 const float GRADIENT_STOP  = 0.9;
 
 // Since Ghostty doesn't expose terminal cell dimensions, we estimate it using
