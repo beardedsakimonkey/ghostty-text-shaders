@@ -13,20 +13,17 @@ const float SHINE_STRENGTH = 0.4;
 // Defines the minimum contrast from the bg needed to get any shine treatment.
 const float SHINE_STRENGTH_SCALING_MIN_CONTRAST = 0.0;
 
-// Defines how much contrast from the bg is needed to get a full-strength sine.
+// Defines how much contrast from the bg is needed to get a full-strength shine.
 const float SHINE_STRENGTH_SCALING_MAX_CONTRAST = 0.6;
 
 // Dim the body of the glyph slightly so the inset highlight does not push the
 // overall perceived brightness too high.
-const float SHINE_BALANCE = 0.15;
+const float SHINE_BALANCE = 0.1;
 
-// Number of inward pixel rows sampled from the lower edge of the glyph.
-const float SHINE_THICKNESS_PX = 3.0;
-
-// Sample spread of the three shine layers in physical pixels.
-const float SHINE_LAYER_SPREADS[3] = float[3](0.5, 1.0, 1.5);
-// Relative contribution of the three shine layers.
-const float SHINE_LAYER_WEIGHTS[3] = float[3](0.5, 0.3, 0.3);
+// Sample spread of each shine layer in physical pixels.
+const float SHINE_LAYER_SPREADS[2] = float[2](0.5, 1.0);
+// Relative contribution of each shine layer.
+const float SHINE_LAYER_WEIGHTS[2] = float[2](0.5, 0.5);
 
 
 float textMask(vec3 color)
@@ -59,12 +56,8 @@ float shineLayerMask(vec2 uv, float text, float spreadPx)
     float shineWeight = 0.0;
 
     // Walk upward from the lower glyph edge to build an inset highlight band.
-    for (int i = 1; i <= 4; i++) {
+    for (int i = 1; i <= 2; i++) {
         float insetPx = float(i);
-        if (insetPx > SHINE_THICKNESS_PX) {
-            continue;
-        }
-
         vec2 shineStep = vec2(0.0, insetPx) / iResolution.xy;
         float shiftedText = textMask(texture(iChannel0, uv - shineStep).rgb);
         shiftedText = min(shiftedText, textMask(texture(iChannel0, uv - shineStep - vec2(0.0, shineSpread.y)).rgb));
@@ -76,7 +69,7 @@ float shineLayerMask(vec2 uv, float text, float spreadPx)
             shiftedText = min(shiftedText, textMask(texture(iChannel0, uv - shineStep + vec2(shineSpread.x, 0.0)).rgb));
         }
 
-        float weight = 1.0 - ((insetPx - 1.0) / max(SHINE_THICKNESS_PX, 1.0));
+        float weight = 1.0 - ((insetPx - 1.0) / 2.0);
         shineMask += text * (1.0 - shiftedText) * weight;
         shineWeight += weight;
     }
@@ -95,7 +88,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     float text = textMask(color.rgb);
 
     float shineMask = 0.0;
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 2; i++) {
         shineMask += shineLayerMask(uv, text, SHINE_LAYER_SPREADS[i]) * SHINE_LAYER_WEIGHTS[i];
     }
     shineMask = smoothstep(0.0, 1.0, shineMask);
