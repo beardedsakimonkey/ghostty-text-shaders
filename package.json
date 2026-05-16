@@ -1,0 +1,13 @@
+{
+  "name": "ghostty-text-shaders",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun run test:shader",
+    "test:shader": "bun tests/run-shader-snapshots.mjs",
+    "test:shader:update": "UPDATE_SHADER_SNAPSHOTS=1 bun tests/run-shader-snapshots.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.60.0"
+  }
+}

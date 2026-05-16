@@ -1,0 +1,497 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Shader Snapshot Harness</title>
+<canvas id="shader-canvas"></canvas>
+<script>
+const canvas = document.getElementById("shader-canvas");
+let harnessState = null;
+
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+function makeShader(gl, type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    const info = gl.getShaderInfoLog(shader);
+    const shaderType = type === gl.VERTEX_SHADER ? "vertex" : "fragment";
+    const glError = gl.getError();
+    gl.deleteShader(shader);
+    throw new Error(info || `${shaderType} shader compilation failed, gl error ${glError}`);
+  }
+  return shader;
+}
+
+function makeProgram(gl, vertexSource, fragmentSource) {
+  const vertexShader = makeShader(gl, gl.VERTEX_SHADER, vertexSource);
+  const fragmentShader = makeShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+  const program = gl.createProgram();
+  gl.attachShader(program, vertexShader);
+  gl.attachShader(program, fragmentShader);
+  gl.linkProgram(program);
+  gl.deleteShader(vertexShader);
+  gl.deleteShader(fragmentShader);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    const info = gl.getProgramInfoLog(program);
+    gl.deleteProgram(program);
+    throw new Error(info || "Shader program link failed");
+  }
+  return program;
+}
+
+function colorToRgba(color) {
+  return [color[0], color[1], color[2], color.length > 3 ? color[3] : 255];
+}
+
+function writePixel(data, width, x, y, color) {
+  const i = (y * width + x) * 4;
+  data[i] = color[0];
+  data[i + 1] = color[1];
+  data[i + 2] = color[2];
+  data[i + 3] = color[3];
+}
+
+function drawRect(data, width, height, x, y, w, h, color) {
+  const rgba = colorToRgba(color);
+  const x0 = Math.max(0, Math.floor(x));
+  const y0 = Math.max(0, Math.floor(y));
+  const x1 = Math.min(width, Math.ceil(x + w));
+  const y1 = Math.min(height, Math.ceil(y + h));
+  for (let yy = y0; yy < y1; yy++) {
+    for (let xx = x0; xx < x1; xx++) {
+      writePixel(data, width, xx, yy, rgba);
+    }
+  }
+}
+
+function cellBox(def, col, row) {
+  const originX = def.originX || 0;
+  const originY = def.originY || 0;
+  return {
+    x: originX + col * def.cellWidth,
+    y: originY + row * def.cellHeight,
+    w: def.cellWidth,
+    h: def.cellHeight
+  };
+}
+
+function drawCellFill(data, width, height, def, fill) {
+  const box = cellBox(def, fill.col, fill.row);
+  drawRect(
+    data,
+    width,
+    height,
+    box.x,
+    box.y,
+    box.w * (fill.cols || 1),
+    box.h * (fill.rows || 1),
+    fill.color
+  );
+}
+
+function drawGlyph(data, width, height, box, color, variant = "e", heightScale = 1.0, yOffset = 0.0) {
+  const stroke = Math.max(2, Math.floor(box.w * 0.16));
+  const padX = Math.max(2, Math.floor(box.w * 0.18));
+  const padY = Math.max(3, Math.floor(box.h * 0.18));
+  const glyphW = box.w - padX * 2;
+  const maxGlyphH = box.h - padY * 2;
+  const glyphH = Math.max(stroke, Math.floor(maxGlyphH * heightScale));
+  const x = box.x + padX;
+  const y = box.y + padY + Math.floor((maxGlyphH - glyphH) * yOffset);
+  const midY = y + Math.floor(glyphH * 0.45);
+  const centerX = box.x + Math.floor(box.w * 0.5 - stroke * 0.5);
+
+  if (variant === "dot") {
+    drawRect(data, width, height, centerX, y + glyphH - stroke, stroke, stroke, color);
+    return;
+  }
+
+  if (variant === "colon") {
+    drawRect(data, width, height, centerX, y, stroke, stroke, color);
+    drawRect(data, width, height, centerX, y + glyphH - stroke, stroke, stroke, color);
+    return;
+  }
+
+  if (variant === "i") {
+    drawRect(data, width, height, centerX, y, stroke, glyphH, color);
+    return;
+  }
+
+  if (variant === "l") {
+    drawRect(data, width, height, x, y, stroke, glyphH, color);
+    drawRect(data, width, height, x, y + glyphH - stroke, glyphW, stroke, color);
+    return;
+  }
+
+  if (variant === "t") {
+    drawRect(data, width, height, x, y, glyphW, stroke, color);
+    drawRect(data, width, height, centerX, y, stroke, glyphH, color);
+    return;
+  }
+
+  if (variant === "n") {
+    drawRect(data, width, height, x, y, stroke, glyphH, color);
+    drawRect(data, width, height, x + glyphW - stroke, y, stroke, glyphH, color);
+    drawRect(data, width, height, x, y, glyphW, stroke, color);
+    return;
+  }
+
+  drawRect(data, width, height, x, y, stroke, glyphH, color);
+  drawRect(data, width, height, x, y, glyphW, stroke, color);
+  drawRect(data, width, height, x, midY, glyphW * 0.75, stroke, color);
+  drawRect(data, width, height, x, y + glyphH - stroke, glyphW, stroke, color);
+}
+
+function drawUnderscore(data, width, height, box, color) {
+  const stroke = Math.max(2, Math.floor(box.w * 0.16));
+  const padX = Math.max(2, Math.floor(box.w * 0.18));
+  const y = box.y + box.h - Math.max(2, stroke + 1);
+  drawRect(data, width, height, box.x + padX, y, box.w - padX * 2, stroke, color);
+}
+
+function drawDoubleUnderline(data, width, height, box, cells, color, thickness, bleedBelow) {
+  const fullW = box.w * cells;
+  const firstY = box.y + box.h - thickness * 3;
+  const secondY = bleedBelow
+    ? box.y + box.h + 1
+    : box.y + box.h - thickness;
+
+  drawRect(data, width, height, box.x, firstY, fullW, thickness, color);
+  drawRect(data, width, height, box.x, secondY, fullW, thickness, color);
+}
+
+function drawUnderlinedDescender(data, width, height, box, color) {
+  const stroke = Math.max(2, Math.floor(box.w * 0.16));
+  const padX = Math.max(1, Math.floor(box.w * 0.1));
+  const topY = box.y;
+  const midY = box.y + Math.floor(box.h * 0.45);
+  const baseY = box.y + Math.floor(box.h * 0.68);
+  const bottomY = box.y + box.h - stroke;
+  const leftX = box.x + Math.floor(box.w * 0.25 - stroke * 0.5);
+  const rightX = box.x + Math.floor(box.w * 0.75 - stroke * 0.5);
+
+  drawRect(data, width, height, leftX, topY, stroke, baseY - topY, color);
+  drawRect(data, width, height, rightX, topY, stroke, bottomY - topY, color);
+  drawRect(data, width, height, leftX, topY, rightX - leftX + stroke, stroke, color);
+  drawRect(data, width, height, leftX, midY, rightX - leftX + stroke, stroke, color);
+  drawRect(data, width, height, leftX, baseY - stroke, rightX - leftX + stroke, stroke, color);
+  drawRect(data, width, height, rightX - padX, bottomY - stroke, padX + stroke, stroke, color);
+  drawRect(data, width, height, box.x + padX, bottomY, box.w - padX * 2, stroke, color);
+}
+
+function drawBlockGlyph(data, width, height, box, pattern, color) {
+  const halfW = box.w * 0.5;
+  const halfH = box.h * 0.5;
+  const quadrants = {
+    upperLeft: [box.x, box.y],
+    upperRight: [box.x + halfW, box.y],
+    lowerLeft: [box.x, box.y + halfH],
+    lowerRight: [box.x + halfW, box.y + halfH]
+  };
+
+  for (const quadrant of pattern) {
+    const [x, y] = quadrants[quadrant];
+    drawRect(data, width, height, x, y, halfW, halfH, color);
+  }
+}
+
+function drawShape(data, width, height, def, shape) {
+  const box = cellBox(def, shape.col, shape.row);
+  const cols = shape.cols || 1;
+  const rows = shape.rows || 1;
+  const fullW = box.w * cols;
+  const fullH = box.h * rows;
+  const thickness = shape.thicknessPx || 2;
+
+  if (shape.type === "glyph") {
+    drawGlyph(data, width, height, box, shape.color, shape.variant, shape.heightScale, shape.yOffset);
+    return;
+  }
+
+  if (shape.type === "underscore") {
+    drawUnderscore(data, width, height, box, shape.color);
+    return;
+  }
+
+  if (shape.type === "doubleUnderline") {
+    drawDoubleUnderline(data, width, height, box, cols, shape.color, thickness, shape.bleedBelow);
+    return;
+  }
+
+  if (shape.type === "underlinedDescender") {
+    drawUnderlinedDescender(data, width, height, box, shape.color);
+    return;
+  }
+
+  if (shape.type === "block") {
+    drawBlockGlyph(data, width, height, box, shape.pattern, shape.color);
+    return;
+  }
+
+  if (shape.type === "vline") {
+    const xFraction = shape.xFraction == null ? 0.5 : shape.xFraction;
+    const x = box.x + Math.floor(box.w * xFraction - thickness * 0.5);
+    drawRect(data, width, height, x, box.y, thickness, fullH, shape.color);
+    return;
+  }
+
+  if (shape.type === "hline") {
+    const yFraction = shape.yFraction == null ? 0.5 : shape.yFraction;
+    const y = box.y + Math.floor(box.h * yFraction - thickness * 0.5);
+    drawRect(data, width, height, box.x, y, fullW, thickness, shape.color);
+    return;
+  }
+
+  if (shape.type === "rect") {
+    drawRect(
+      data,
+      width,
+      height,
+      box.x + box.w * (shape.x || 0.0),
+      box.y + box.h * (shape.y || 0.0),
+      box.w * (shape.w || 1.0),
+      box.h * (shape.h || 1.0),
+      shape.color
+    );
+    return;
+  }
+
+  throw new Error(`Unknown fixture shape: ${shape.type}`);
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Unable to decode PNG"));
+    image.src = src;
+  });
+}
+
+function makeFixture(def) {
+  const originX = def.originX || 0;
+  const originY = def.originY || 0;
+  const width = originX * 2 + def.columns * def.cellWidth;
+  const height = originY * 2 + def.rows * def.cellHeight;
+  const data = new Uint8Array(width * height * 4);
+  drawRect(data, width, height, 0, 0, width, height, def.backgroundColor);
+
+  for (const fill of def.fills || []) {
+    drawCellFill(data, width, height, def, fill);
+  }
+  for (const shape of def.shapes || []) {
+    drawShape(data, width, height, def, shape);
+  }
+
+  return {
+    data,
+    width,
+    height,
+    cursor: [
+      originX,
+      originY,
+      def.cellWidth,
+      def.cellHeight
+    ],
+    backgroundColor: def.iBackgroundColor || def.backgroundColor
+  };
+}
+
+function makeFragmentSource(shaderSource) {
+  return `#version 300 es
+precision highp float;
+precision highp sampler2D;
+
+uniform vec3 iResolution;
+uniform sampler2D iChannel0;
+uniform vec3 iBackgroundColor;
+uniform vec4 iPreviousCursor;
+uniform vec4 iCurrentCursor;
+
+${shaderSource}
+
+out vec4 harnessColor;
+
+void main() {
+  vec2 ghosttyFragCoord = vec2(gl_FragCoord.x, iResolution.y - gl_FragCoord.y);
+  mainImage(harnessColor, ghosttyFragCoord);
+}
+`;
+}
+
+function makeHarness(shaderSource) {
+  const gl = canvas.getContext("webgl2", {
+    antialias: false,
+    depth: false,
+    stencil: false,
+    alpha: false,
+    premultipliedAlpha: false,
+    preserveDrawingBuffer: true
+  });
+  assert(gl, "WebGL2 is not available in this browser");
+
+  const vertexSource = `#version 300 es
+in vec2 a_position;
+
+void main() {
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}
+`;
+  const program = makeProgram(gl, vertexSource, makeFragmentSource(shaderSource));
+  const positionLocation = gl.getAttribLocation(program, "a_position");
+
+  const vertexBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array([
+      -1, -1,
+       1, -1,
+      -1,  1,
+      -1,  1,
+       1, -1,
+       1,  1
+    ]),
+    gl.STATIC_DRAW
+  );
+
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+  gl.enableVertexAttribArray(positionLocation);
+  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+  const texture = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+  return {
+    gl,
+    program,
+    texture,
+    vao,
+    shaderSource
+  };
+}
+
+function getHarness(shaderSource) {
+  if (!harnessState || harnessState.shaderSource !== shaderSource) {
+    harnessState = makeHarness(shaderSource);
+  }
+  return harnessState;
+}
+
+function captureCanvasPixels(width, height) {
+  const capture = document.createElement("canvas");
+  capture.width = width;
+  capture.height = height;
+  const ctx = capture.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(canvas, 0, 0);
+  return {
+    pixels: Array.from(ctx.getImageData(0, 0, width, height).data),
+    pngDataUrl: capture.toDataURL("image/png")
+  };
+}
+
+window.renderShaderCase = function renderShaderCase(shaderSource, caseDef) {
+  const fixture = makeFixture(caseDef);
+  canvas.width = fixture.width;
+  canvas.height = fixture.height;
+
+  const state = getHarness(shaderSource);
+  const gl = state.gl;
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, state.texture);
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGBA,
+    fixture.width,
+    fixture.height,
+    0,
+    gl.RGBA,
+    gl.UNSIGNED_BYTE,
+    fixture.data
+  );
+
+  const bg = fixture.backgroundColor.map((value) => value / 255);
+  gl.useProgram(state.program);
+  gl.bindVertexArray(state.vao);
+  gl.uniform3f(gl.getUniformLocation(state.program, "iResolution"), fixture.width, fixture.height, 1.0);
+  gl.uniform1i(gl.getUniformLocation(state.program, "iChannel0"), 0);
+  gl.uniform3f(gl.getUniformLocation(state.program, "iBackgroundColor"), bg[0], bg[1], bg[2]);
+  gl.uniform4f(gl.getUniformLocation(state.program, "iPreviousCursor"), fixture.cursor[0], fixture.cursor[1], fixture.cursor[2], fixture.cursor[3]);
+  gl.uniform4f(gl.getUniformLocation(state.program, "iCurrentCursor"), fixture.cursor[0], fixture.cursor[1], fixture.cursor[2], fixture.cursor[3]);
+
+  gl.viewport(0, 0, fixture.width, fixture.height);
+  gl.clearColor(0, 0, 0, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  gl.finish();
+
+  const captured = captureCanvasPixels(fixture.width, fixture.height);
+  return {
+    width: fixture.width,
+    height: fixture.height,
+    pixels: captured.pixels,
+    pngDataUrl: captured.pngDataUrl
+  };
+};
+
+window.decodePngBase64 = async function decodePngBase64(base64) {
+  const image = await loadImage(`data:image/png;base64,${base64}`);
+  const decodeCanvas = document.createElement("canvas");
+  decodeCanvas.width = image.width;
+  decodeCanvas.height = image.height;
+  const ctx = decodeCanvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(image, 0, 0);
+  return {
+    width: image.width,
+    height: image.height,
+    pixels: Array.from(ctx.getImageData(0, 0, image.width, image.height).data)
+  };
+};
+
+window.makeDiffPngDataUrl = function makeDiffPngDataUrl(args) {
+  const diffCanvas = document.createElement("canvas");
+  diffCanvas.width = args.width;
+  diffCanvas.height = args.height;
+  const ctx = diffCanvas.getContext("2d");
+  const imageData = ctx.createImageData(args.width, args.height);
+  const out = imageData.data;
+  const expected = args.expectedPixels;
+  const actual = args.actualPixels;
+  const tolerance = args.perChannelTolerance;
+
+  for (let i = 0; i < out.length; i += 4) {
+    const delta = Math.max(
+      Math.abs(expected[i] - actual[i]),
+      Math.abs(expected[i + 1] - actual[i + 1]),
+      Math.abs(expected[i + 2] - actual[i + 2]),
+      Math.abs(expected[i + 3] - actual[i + 3])
+    );
+    if (delta > tolerance) {
+      out[i] = 255;
+      out[i + 1] = 40;
+      out[i + 2] = 80;
+      out[i + 3] = 255;
+    } else {
+      out[i] = Math.floor(actual[i] * 0.35);
+      out[i + 1] = Math.floor(actual[i + 1] * 0.35);
+      out[i + 2] = Math.floor(actual[i + 2] * 0.35);
+      out[i + 3] = 255;
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+  return diffCanvas.toDataURL("image/png");
+};
+</script>
