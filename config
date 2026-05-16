@@ -1,8 +1,7 @@
-# Shader pipeline (keep scanlines last)
+# Shader pipeline
 custom-shader = text-shadow.glsl
 custom-shader = text-shine.glsl
 custom-shader = text-gradient.glsl
-custom-shader = scanlines.glsl
 
 # # Example theme/font configuration
 # theme = One Half Dark

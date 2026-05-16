@@ -3,7 +3,7 @@
 Give your [Ghostty](https://github.com/ghostty-org/ghostty) terminal a Web 2.0
 style makeover using shaders!
 
-You can either use all 4 glsl shaders together or pick and choose based on your
+You can either use all 3 glsl shaders together or pick and choose based on your
 preference.
 
 ## Screenshot
@@ -40,7 +40,6 @@ or just copy-paste this into your `config`:
 custom-shader = text-shadow.glsl
 custom-shader = text-shine.glsl
 custom-shader = text-gradient.glsl
-custom-shader = scanlines.glsl
 ```
 
 ## Configuration
