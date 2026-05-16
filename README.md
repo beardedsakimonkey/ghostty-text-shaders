@@ -3,8 +3,8 @@
 Give your [Ghostty](https://github.com/ghostty-org/ghostty) terminal a Web 2.0
 style makeover using shaders!
 
-You can either use all 3 glsl shaders together or pick and choose based on your
-preference.
+You can use the included shader effects together or pick and choose based on
+your preference.
 
 ## Screenshot
 
@@ -38,7 +38,6 @@ or just copy-paste this into your `config`:
 
 ```
 custom-shader = text-shadow.glsl
-custom-shader = text-shine.glsl
 custom-shader = text-gradient.glsl
 ```
 
@@ -48,9 +47,28 @@ There are various constants in each shader that can be configured to your
 liking. The most impactful knobs are:
 
 - `GRADIENT_STRENGTH`
-- `SHADOW_STRENGTH`
 - `SHINE_STRENGTH`
-- `SHINE_BALANCE`
+- `SHADOW_STRENGTH`
+
+`text-gradient.glsl` contains both the gradient and shine effects, so configure
+the `GRADIENT_*` and `SHINE_*` constants there.
+
+## Shader Snapshot Tests
+
+`text-gradient.glsl` has snapshot regression tests that render the
+shader in a small WebGL harness with synthetic terminal fixtures.
+
+```sh
+bun install
+bunx playwright install chromium
+bun run test:shader
+```
+
+To intentionally refresh the golden PNGs after a shader change:
+
+```sh
+bun run test:shader:update
+```
 
 ## More Ghostty Shaders
 

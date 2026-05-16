@@ -1,6 +1,5 @@
 # Shader pipeline
 custom-shader = text-shadow.glsl
-custom-shader = text-shine.glsl
 custom-shader = text-gradient.glsl
 
 # # Example theme/font configuration

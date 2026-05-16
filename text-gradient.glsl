@@ -1,24 +1,40 @@
 /*
- * Adds a per-row vertical gradient to text using the current cursor height:
- * darker near the bottom of each row and lighter near the top.
+ * Adds a per-row vertical gradient and lower-edge shine to text using the
+ * current cursor height and cell-local background estimation.
  */
+
+// Set to 0.0 to disable the gradient completely.
+const float GRADIENT_STRENGTH = 0.3;
+
+// If you want to reduce the overall strength of the gradient based on how dim
+// the text is, you can set the contrast thresholds for the strength scaling.
+
+// Defines the minimum contrast from the bg needed to get any gradient treatment.
+const float GRADIENT_STRENGTH_SCALING_MIN_CONTRAST = 0.1;
+
+// Defines how much contrast from the bg is needed to get a full-strength gradient.
+const float GRADIENT_STRENGTH_SCALING_MAX_CONTRAST = 0.5;
+
+// Gradient is a linear gradient going from the bottom of the row to the top (0→1).
+// Adjust the start/stop values to condense the gradient. Swap them to reverse the gradient.
+const float GRADIENT_START = 0.0;
+const float GRADIENT_STOP  = 1.0;
 
 // Since Ghostty doesn't expose terminal cell dimensions, we estimate it using
 // the cursor height. This shifts where the gradient starts within rows.
 const float GRADIENT_Y_OFFSET_PX = -4.0;
 
-// Set to 0.0 to disable the gradient completely.
-const float GRADIENT_STRENGTH = 0.3;
+// Set to 0.0 to disable the shine completely.
+const float SHINE_STRENGTH = 0.4;
 
-// Defines the minimum contrast from the bg needed to get any gradient treatment.
-const float GRADIENT_STRENGTH_SCALING_MIN_CONTRAST = 0.1;
-// Defines how much contrast from the bg is needed to get a full-strength gradient.
-const float GRADIENT_STRENGTH_SCALING_MAX_CONTRAST = 0.5;
+// Dim the body of the glyph slightly so the inset highlight does not push the
+// overall perceived brightness too high.
+const float SHINE_BALANCE = 0.1;
 
-// Gradient is a linear gradient going from the bottom of the row to the top (0-1).
-// Adjust the start/stop values to condense the gradient. Swap them to reverse the gradient.
-const float GRADIENT_START = 0.0;
-const float GRADIENT_STOP  = 1.0;
+// Sample spread of each shine layer in physical pixels.
+const float SHINE_LAYER_SPREADS[2] = float[2](0.5, 1.0);
+// Relative contribution of each shine layer.
+const float SHINE_LAYER_WEIGHTS[2] = float[2](0.5, 0.5);
 
 // Cell-local background detection. Ghostty only exposes the rendered texture,
 // so app-painted backgrounds are inferred from pixels near the row edges.
@@ -135,15 +151,25 @@ float textMask(vec3 color, vec3 background)
     return smoothstep(0.08, 0.35, max(channelDelta, colorDelta));
 }
 
-float contrastFromBackground(vec3 color, vec3 background)
+float contrastMask(vec3 color, vec3 background, float minContrast, float maxContrast)
 {
     vec3 diff = abs(color - background);
     float channelDelta = max(max(diff.r, diff.g), diff.b);
     float colorDelta = abs(luminance(color) - luminance(background));
     return smoothstep(
-        GRADIENT_STRENGTH_SCALING_MIN_CONTRAST,
-        GRADIENT_STRENGTH_SCALING_MAX_CONTRAST,
+        minContrast,
+        maxContrast,
         max(channelDelta, colorDelta)
+    );
+}
+
+float gradientContrastFromBackground(vec3 color, vec3 background)
+{
+    return contrastMask(
+        color,
+        background,
+        GRADIENT_STRENGTH_SCALING_MIN_CONTRAST,
+        GRADIENT_STRENGTH_SCALING_MAX_CONTRAST
     );
 }
 
@@ -151,6 +177,47 @@ vec3 sampleSourceCoord(vec2 coord)
 {
     vec2 uv = clamp(coord / iResolution.xy, vec2(0.0), vec2(1.0));
     return texture(iChannel0, uv).rgb;
+}
+
+float sampleTextMask(vec2 uv, vec3 background)
+{
+    return textMask(texture(iChannel0, clamp(uv, vec2(0.0), vec2(1.0))).rgb, background);
+}
+
+float shineLayerMask(vec2 uv, vec3 background, float text, float spreadPx)
+{
+    vec2 shineSpread = spreadPx / iResolution.xy;
+    float shineMask = 0.0;
+    float shineWeight = 0.0;
+
+    // Walk upward from the lower glyph edge to build an inset highlight band.
+    for (int i = 1; i <= 2; i++) {
+        float insetPx = float(i);
+        vec2 shineStep = vec2(0.0, insetPx) / iResolution.xy;
+        float shiftedText = sampleTextMask(uv - shineStep, background);
+        shiftedText = min(
+            shiftedText,
+            sampleTextMask(uv - shineStep - vec2(0.0, shineSpread.y), background)
+        );
+
+        // The contact row gets horizontal taps too, which helps the highlight
+        // wrap around rounded lower corners rather than reading as a flat stripe.
+        if (i == 1) {
+            shiftedText = min(
+                shiftedText,
+                sampleTextMask(uv - shineStep - vec2(shineSpread.x, 0.0), background)
+            );
+            shiftedText = min(
+                shiftedText,
+                sampleTextMask(uv - shineStep + vec2(shineSpread.x, 0.0), background)
+            );
+        }
+
+        float weight = 1.0 - ((insetPx - 1.0) / 2.0);
+        shineMask += text * (1.0 - shiftedText) * weight;
+        shineWeight += weight;
+    }
+    return shineWeight > 0.0 ? shineMask / shineWeight : 0.0;
 }
 
 float estimatedColumnSampleX(
@@ -382,7 +449,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
     vec2 uv = fragCoord.xy / iResolution.xy;
     vec4 source = texture(iChannel0, uv);
-    if (GRADIENT_STRENGTH <= 0.0) {
+    if (GRADIENT_STRENGTH <= 0.0 && SHINE_STRENGTH <= 0.0) {
         fragColor = source;
         return;
     }
@@ -404,23 +471,45 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
         return;
     }
 
-    float rowPosition = 1.0 - fract((fragCoord.y + GRADIENT_Y_OFFSET_PX) / rowHeight);
-    float gradientPosition = smoothstep(
-        GRADIENT_START,
-        GRADIENT_STOP,
-        rowPosition
-    );
-    // Scale the gradient strength using the contrast between current pixel color and background color.
-    float contrastScale = contrastFromBackground(source.rgb, background);
-    if (contrastScale <= 0.0) {
-        fragColor = source;
-        return;
-    }
-    float gradientStrength = GRADIENT_STRENGTH * contrastScale;
-    float gradientBrightness = mix(1.0 - gradientStrength, 1.0 + gradientStrength, gradientPosition);
+    vec4 color = source;
 
-    vec4 gradientColor = applyOkLabBrightness(source, gradientBrightness);
-    vec4 color = mix(source, gradientColor, text);
+    if (GRADIENT_STRENGTH > 0.0) {
+        float rowPosition = 1.0 - fract((fragCoord.y + GRADIENT_Y_OFFSET_PX) / rowHeight);
+        float gradientPosition = smoothstep(
+            GRADIENT_START,
+            GRADIENT_STOP,
+            rowPosition
+        );
+        // Scale the gradient strength using the contrast between current pixel color and background color.
+        float contrastScale = gradientContrastFromBackground(source.rgb, background);
+        if (contrastScale > 0.0) {
+            float gradientStrength = GRADIENT_STRENGTH * contrastScale;
+            float gradientBrightness = mix(1.0 - gradientStrength, 1.0 + gradientStrength, gradientPosition);
+
+            vec4 gradientColor = applyOkLabBrightness(color, gradientBrightness);
+            color = mix(color, gradientColor, text);
+        }
+    }
+
+    if (SHINE_STRENGTH > 0.0) {
+        float shineMask = 0.0;
+        for (int i = 0; i < 2; i++) {
+            shineMask += (
+                shineLayerMask(uv, background, text, SHINE_LAYER_SPREADS[i]) *
+                SHINE_LAYER_WEIGHTS[i]
+            );
+        }
+        shineMask = smoothstep(0.0, 1.0, shineMask);
+
+        // Favor stronger shine on clearly text-like pixels with enough contrast to
+        // carry the effect cleanly.
+        float contrastScale = gradientContrastFromBackground(source.rgb, background);
+        float shineTextStrength = smoothstep(0.55, 1.0, text);
+        float shineLift = shineMask * SHINE_STRENGTH * shineTextStrength * contrastScale;
+        float shineCompensation = text * SHINE_BALANCE;
+        float shineBrightness = 1.0 + shineLift - shineCompensation;
+        color = applyOkLabBrightness(color, shineBrightness);
+    }
 
     fragColor = color;
 }
