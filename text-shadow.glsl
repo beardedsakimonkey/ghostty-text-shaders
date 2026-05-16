@@ -1,28 +1,22 @@
-/*
- * Adds a soft offset shadow around text using 10 staggered caster taps total.
- */
-
-// Set to 0.0 to disable the shadow completely.
-const float SHADOW_STRENGTH = 0.5;
-
-// If you want to reduce the overall strength of the shadow based on how dim
-// the text is, you can set the contrast thresholds for the strength scaling.
-// Set MIN to 1.0 or MAX to 0.0 to disable strength scaling.
+// Shadow visibility.
+const float SHADOW_STRENGTH = 0.8;
 
 // Defines the minimum contrast from the bg needed to get any shadow treatment.
 const float SHADOW_STRENGTH_SCALING_MIN_CONTRAST = 0.1;
 // Defines how much contrast from the bg is needed to get a full-strength shadow.
 const float SHADOW_STRENGTH_SCALING_MAX_CONTRAST = 0.5;
 
-// Base shadow offset in pixels before the per-layer multipliers below.
-const vec2  SHADOW_STEP_OFFSET = vec2(1.0, 2.0);
+// Direction vector for the shadow. Magnitude is ignored; use distance below.
+const vec2  SHADOW_DIRECTION = vec2(1.0, 2.0);
 
-// Staggered layers keep the shadow from reading like a single copied glyph.
-const float SHADOW_LAYER_OFFSETS[4] = float[4](0.75, 1.65, 2.55, 3.55);
-const float SHADOW_LAYER_WEIGHTS[4] = float[4](0.44, 0.28, 0.18, 0.10);
+// Maximum shadow reach in physical pixels.
+const float SHADOW_DISTANCE_PX = 7.95;
 
-// Shadow color in RGB
+// Shadow color in RGB.
 const vec3  SHADOW_COLOR = vec3(0.006, 0.007, 0.012);
+
+// Fine-tune the relative weights of shadow layers (should sum to ~1.0).
+const float SHADOW_LAYER_WEIGHTS[4] = float[4](0.44, 0.28, 0.18, 0.10);
 
 
 float textMask(vec3 color)
@@ -33,17 +27,11 @@ float textMask(vec3 color)
     return smoothstep(0.08, 0.11, max(channelDelta, colorDelta * 0.65));
 }
 
-float luminance(vec3 color)
-{
-    return dot(color, vec3(0.2126, 0.7152, 0.0722));
-}
-
 float colorDistance(vec3 a, vec3 b)
 {
     vec3 diff = abs(a - b);
     float channelDelta = max(max(diff.r, diff.g), diff.b);
-    float colorDelta = abs(luminance(a) - luminance(b));
-    return max(channelDelta, colorDelta);
+    return max(channelDelta, length(diff) * 0.65);
 }
 
 float contrastFromBackground(vec3 color)
@@ -55,18 +43,25 @@ float contrastFromBackground(vec3 color)
     );
 }
 
+vec2 normalizedDirection(vec2 direction)
+{
+    float len = length(direction);
+    return len > 0.0 ? direction / len : vec2(1.0, 0.0);
+}
+
+float shadowLayerPosition(float layer)
+{
+    float t = layer / 4.0;
+    return t * (0.8 + 0.2 * t);
+}
+
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
     vec2 uv = fragCoord.xy / iResolution.xy;
     vec4 source = texture(iChannel0, uv);
-    if (SHADOW_STRENGTH <= 0.0) {
-        fragColor = source;
-        return;
-    }
 
     vec2 texel = 1.0 / iResolution.xy;
-    vec2 shadowStep = SHADOW_STEP_OFFSET / iResolution.xy;
-    vec2 shadowDirection = normalize(SHADOW_STEP_OFFSET);
+    vec2 shadowDirection = normalizedDirection(SHADOW_DIRECTION);
     vec2 shadowCrossDirection = vec2(-shadowDirection.y, shadowDirection.x);
 
     float sourceText = textMask(source.rgb);
@@ -75,9 +70,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 
     // Four non-linear layers read less like copied glyphs than even spacing.
     for (int i = 1; i <= 4; i++) {
-        float offset = SHADOW_LAYER_OFFSETS[i - 1];
+        float layerPosition = shadowLayerPosition(float(i));
         float weight = SHADOW_LAYER_WEIGHTS[i - 1];
-        vec2 casterUv = uv - shadowStep * offset;
+        vec2 casterUv = uv - shadowDirection * SHADOW_DISTANCE_PX * layerPosition / iResolution.xy;
         vec3 casterColor = texture(iChannel0, casterUv).rgb;
 
         // Spend edge-smoothing taps where they matter most: the contact layer.
