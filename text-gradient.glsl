@@ -1,28 +1,28 @@
-// Set to 0.0 to disable the gradient completely.
+//========================================================================
+// Gradient
+//========================================================================
 const float GRADIENT_STRENGTH = 0.3;
 
-// Defines the minimum contrast from the bg needed to get any gradient treatment.
-const float GRADIENT_STRENGTH_SCALING_MIN_CONTRAST = 0.1;
-
-// Defines how much contrast from the bg is needed to get a full-strength gradient.
-const float GRADIENT_STRENGTH_SCALING_MAX_CONTRAST = 0.5;
-
-// Gradient is a linear gradient going from the bottom of the row to the top (0→1).
-// Adjust the start/stop values to condense the gradient. Swap them to reverse the gradient.
-const float GRADIENT_START = 0.0;
-const float GRADIENT_STOP  = 1.0;
+// Ramp up gradient strength based on text/background contrast.
+const float GRADIENT_STRENGTH_RAMP_START = 0.1;
+const float GRADIENT_STRENGTH_RAMP_END   = 0.5;
 
 // Since Ghostty doesn't expose terminal cell dimensions, we estimate it using
 // the cursor height. This shifts where the gradient starts within rows.
 const float GRADIENT_Y_OFFSET_PX = -4.0;
 
-// Shadow visibility.
+// Start/stop position of the linear gradient going from row-bottom to row-top (0→1).
+const float GRADIENT_START = 0.0;
+const float GRADIENT_STOP  = 1.0;
+
+//========================================================================
+// Shadow
+//========================================================================
 const float SHADOW_STRENGTH = 0.8;
 
-// Defines the minimum contrast from the bg needed to get any shadow treatment.
-const float SHADOW_STRENGTH_SCALING_MIN_CONTRAST = 0.1;
-// Defines how much contrast from the bg is needed to get a full-strength shadow.
-const float SHADOW_STRENGTH_SCALING_MAX_CONTRAST = 0.5;
+// Ramp up shadow strength based on text/background contrast.
+const float SHADOW_STRENGTH_RAMP_START = 0.1;
+const float SHADOW_STRENGTH_RAMP_END   = 0.5;
 
 // Direction vector for the shadow. Magnitude is ignored; use distance below.
 const vec2  SHADOW_DIRECTION = vec2(1.0, 2.0);
@@ -36,39 +36,25 @@ const vec3  SHADOW_COLOR = vec3(0.006, 0.007, 0.012);
 // Fine-tune the relative weights of shadow layers (should sum to ~1.0).
 const float SHADOW_LAYER_WEIGHTS[4] = float[4](0.44, 0.28, 0.18, 0.10);
 
-// Set to 0.0 to disable the shine completely.
+//========================================================================
+// Shine
+//========================================================================
 const float SHINE_STRENGTH = 0.4;
 
-// Defines the minimum contrast from the bg needed to get any shine treatment.
-const float SHINE_STRENGTH_SCALING_MIN_CONTRAST = 0.0;
+// Ramp up shine strength based on text/background contrast.
+const float SHINE_STRENGTH_RAMP_START = 0.0;
+const float SHINE_STRENGTH_RAMP_END   = 0.4;
 
-// Defines how much contrast from the bg is needed to get a full-strength shine.
-const float SHINE_STRENGTH_SCALING_MAX_CONTRAST = 0.4;
-
-// Dim the body of the glyph slightly so the inset highlight does not push the
-// overall perceived brightness too high.
+// Dim the body of the glyph to compensate.
 const float SHINE_BALANCE = 0.1;
 
-// Sample spread of each shine layer in physical pixels.
+// Fine-tune the sample spread/weights of each shine layer.
 const float SHINE_LAYER_SPREADS[2] = float[2](0.5, 1.0);
-// Relative contribution of each shine layer.
 const float SHINE_LAYER_WEIGHTS[2] = float[2](0.5, 0.5);
 
-// Cell-local background detection. Ghostty only exposes the rendered texture,
-// so app-painted backgrounds are inferred from pixels near the row edges.
-const float CELL_BG_SAMPLE_INSET_PX = 1.0;
-const float CELL_BG_AGREE_MIN_DELTA = 0.01;
-const float CELL_BG_AGREE_MAX_DELTA = 0.05;
-const float CELL_BG_CENTER_MIN_AGREEMENT = 0.75;
-const float CELL_BG_SIDE_SAMPLE_FRACTION = 0.12;
-const float CELL_BG_SIDE_MIN_AGREEMENT = 0.75;
-const float CELL_BG_SIDES_MIN_AGREEMENT = 0.75;
-const float CELL_BG_SINGLE_EDGE_MIN_AGREEMENT = 0.75;
-const float CELL_BG_SINGLE_EDGE_INNER_OFFSET_PX = 4.0;
-const float CELL_BG_SPLIT_BLOCK_MIN_DELTA = 0.5;
+//------------------------------------------------------------------------
 
 
-// sRGB linear -> nonlinear transform from https://bottosson.github.io/posts/colorwrong/
 float f(float x)
 {
     if (x >= 0.0031308) {
@@ -88,6 +74,7 @@ float f_inv(float x)
 }
 
 // Oklab <-> linear sRGB conversions from https://bottosson.github.io/posts/oklab/#converting-from-linear-srgb-to-oklab
+// sRGB linear -> nonlinear transform from https://bottosson.github.io/posts/colorwrong/
 vec4 toOklab(vec4 rgb)
 {
     vec3 c = vec3(f_inv(rgb.r), f_inv(rgb.g), f_inv(rgb.b));
@@ -152,6 +139,19 @@ float colorDistance(vec3 a, vec3 b)
     return max(channelDelta, colorDelta);
 }
 
+// Cell-local background detection. Ghostty only exposes the rendered texture,
+// so app-painted backgrounds are inferred from pixels near the row edges.
+const float CELL_BG_SAMPLE_INSET_PX = 1.0;
+const float CELL_BG_AGREE_MIN_DELTA = 0.01;
+const float CELL_BG_AGREE_MAX_DELTA = 0.05;
+const float CELL_BG_CENTER_MIN_AGREEMENT = 0.75;
+const float CELL_BG_SIDE_SAMPLE_FRACTION = 0.12;
+const float CELL_BG_SIDE_MIN_AGREEMENT = 0.75;
+const float CELL_BG_SIDES_MIN_AGREEMENT = 0.75;
+const float CELL_BG_SINGLE_EDGE_MIN_AGREEMENT = 0.75;
+const float CELL_BG_SINGLE_EDGE_INNER_OFFSET_PX = 4.0;
+const float CELL_BG_SPLIT_BLOCK_MIN_DELTA = 0.5;
+
 float backgroundSampleAgreement(vec3 a, vec3 b)
 {
     return 1.0 - smoothstep(
@@ -186,8 +186,8 @@ float gradientContrastFromBackground(vec3 color, vec3 background)
     return contrastMask(
         color,
         background,
-        GRADIENT_STRENGTH_SCALING_MIN_CONTRAST,
-        GRADIENT_STRENGTH_SCALING_MAX_CONTRAST
+        GRADIENT_STRENGTH_RAMP_START,
+        GRADIENT_STRENGTH_RAMP_END
     );
 }
 
@@ -196,8 +196,8 @@ float shineContrastFromBackground(vec3 color, vec3 background)
     return contrastMask(
         color,
         background,
-        SHINE_STRENGTH_SCALING_MIN_CONTRAST,
-        SHINE_STRENGTH_SCALING_MAX_CONTRAST
+        SHINE_STRENGTH_RAMP_START,
+        SHINE_STRENGTH_RAMP_END
     );
 }
 
@@ -225,8 +225,8 @@ float shadowColorDistance(vec3 a, vec3 b)
 float shadowContrastFromBackground(vec3 color)
 {
     return smoothstep(
-        SHADOW_STRENGTH_SCALING_MIN_CONTRAST,
-        SHADOW_STRENGTH_SCALING_MAX_CONTRAST,
+        SHADOW_STRENGTH_RAMP_START,
+        SHADOW_STRENGTH_RAMP_END,
         shadowColorDistance(color, iBackgroundColor)
     );
 }
