@@ -1,13 +1,5 @@
-/*
- * Adds a per-row vertical gradient and lower-edge shine to text using the
- * current cursor height and cell-local background estimation.
- */
-
 // Set to 0.0 to disable the gradient completely.
 const float GRADIENT_STRENGTH = 0.3;
-
-// If you want to reduce the overall strength of the gradient based on how dim
-// the text is, you can set the contrast thresholds for the strength scaling.
 
 // Defines the minimum contrast from the bg needed to get any gradient treatment.
 const float GRADIENT_STRENGTH_SCALING_MIN_CONTRAST = 0.1;
@@ -26,6 +18,12 @@ const float GRADIENT_Y_OFFSET_PX = -4.0;
 
 // Set to 0.0 to disable the shine completely.
 const float SHINE_STRENGTH = 0.4;
+
+// Defines the minimum contrast from the bg needed to get any shine treatment.
+const float SHINE_STRENGTH_SCALING_MIN_CONTRAST = 0.0;
+
+// Defines how much contrast from the bg is needed to get a full-strength shine.
+const float SHINE_STRENGTH_SCALING_MAX_CONTRAST = 0.4;
 
 // Dim the body of the glyph slightly so the inset highlight does not push the
 // overall perceived brightness too high.
@@ -171,6 +169,22 @@ float gradientContrastFromBackground(vec3 color, vec3 background)
         GRADIENT_STRENGTH_SCALING_MIN_CONTRAST,
         GRADIENT_STRENGTH_SCALING_MAX_CONTRAST
     );
+}
+
+float shineContrastFromBackground(vec3 color, vec3 background)
+{
+    return contrastMask(
+        color,
+        background,
+        SHINE_STRENGTH_SCALING_MIN_CONTRAST,
+        SHINE_STRENGTH_SCALING_MAX_CONTRAST
+    );
+}
+
+bool shouldTreatText(vec3 color, vec3 background)
+{
+    // Dark text on a light background does not read well with gradient/shine.
+    return luminance(color) > luminance(background);
 }
 
 vec3 sampleSourceCoord(vec2 coord)
@@ -470,6 +484,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
         fragColor = source;
         return;
     }
+    if (!shouldTreatText(source.rgb, background)) {
+        fragColor = source;
+        return;
+    }
 
     vec4 color = source;
 
@@ -503,7 +521,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 
         // Favor stronger shine on clearly text-like pixels with enough contrast to
         // carry the effect cleanly.
-        float contrastScale = gradientContrastFromBackground(source.rgb, background);
+        float contrastScale = shineContrastFromBackground(source.rgb, background);
         float shineTextStrength = smoothstep(0.55, 1.0, text);
         float shineLift = shineMask * SHINE_STRENGTH * shineTextStrength * contrastScale;
         float shineCompensation = text * SHINE_BALANCE;
