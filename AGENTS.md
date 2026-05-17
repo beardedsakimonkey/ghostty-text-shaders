@@ -3,11 +3,7 @@
 ## Project Structure & Module Organization
 
 This repository contains Ghostty custom shaders. Root-level `*.glsl` files are
-shader sources loaded by `config` or kept for compatibility, including
-`text-gradient.glsl`, `text-shadow.glsl`, and `text-shine.glsl`.
-`text-gradient.glsl` contains the gradient and shine text effects. Keep
-shader-specific logic in its own file unless a helper is already established
-locally.
+the shader sources loaded by `config`.
 
 Tests live under `tests/`. The WebGL harness is `tests/shader-harness.html`, fixture definitions are in `tests/fixtures/cases.mjs`, and committed golden PNGs are in `tests/goldens/`. Test artifacts and diffs are written to `tests/artifacts/` and should not be committed.
 

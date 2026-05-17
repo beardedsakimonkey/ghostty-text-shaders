@@ -3,9 +3,6 @@
 Give your [Ghostty](https://github.com/ghostty-org/ghostty) terminal a Web 2.0
 style makeover using shaders!
 
-You can use the included shader effects together or pick and choose based on
-your preference.
-
 ## Screenshot
 
 <p align="center">
@@ -37,7 +34,6 @@ cat ghostty-text-shaders/config >> ~/.config/ghostty/config
 or just copy-paste this into your `config`:
 
 ```
-custom-shader = text-shadow.glsl
 custom-shader = text-gradient.glsl
 ```
 
@@ -47,11 +43,9 @@ There are various constants in each shader that can be configured to your
 liking. The most impactful knobs are:
 
 - `GRADIENT_STRENGTH`
-- `SHINE_STRENGTH`
 - `SHADOW_STRENGTH`
-
-`text-gradient.glsl` contains both the gradient and shine effects, so configure
-the `GRADIENT_*` and `SHINE_*` constants there.
+- `SHINE_STRENGTH`
+- `SHINE_BALANCE`
 
 ## Shader Snapshot Tests
 
