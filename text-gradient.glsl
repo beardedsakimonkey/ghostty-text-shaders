@@ -11,6 +11,9 @@ const float GRADIENT_STRENGTH_RAMP_END   = 0.5;
 // the cursor height. This shifts where the gradient starts within rows.
 const float GRADIENT_Y_OFFSET_PX = -4.0;
 
+// Smooth the gradient at the top of row to help with double/squiggly underlines.
+const float GRADIENT_ROW_SEAM_SMOOTH_PX = 8.0;
+
 // Start/stop position of the linear gradient going from row-bottom to row-top (0→1).
 const float GRADIENT_START = 0.0;
 const float GRADIENT_STOP  = 1.0;
@@ -602,7 +605,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     vec4 color = sourceWithShadow;
 
     if (GRADIENT_STRENGTH > 0.0) {
-        float rowPosition = 1.0 - fract((fragCoord.y + GRADIENT_Y_OFFSET_PX) / rowHeight);
+        float rowPhase = fract((fragCoord.y + GRADIENT_Y_OFFSET_PX) / rowHeight);
+        float rowPosition = 1.0 - rowPhase;
+        float seamWidth = min(GRADIENT_ROW_SEAM_SMOOTH_PX / rowHeight, 0.5);
+        // Feather row starts so underline spillover does not jump to full brightness.
+        rowPosition *= smoothstep(0.0, seamWidth, rowPhase);
         float gradientPosition = smoothstep(
             GRADIENT_START,
             GRADIENT_STOP,
