@@ -11,7 +11,7 @@ style makeover using shaders!
 </p>
 
 <p align="center">
-   <img width="947" height="872" alt="One Half screenshot" src="https://github.com/user-attachments/assets/85777feb-4134-4d38-ab9c-6539ed3e631f" />
+   <video alt="Ghostty themes demo" src="https://github.com/user-attachments/assets/92c63569-558a-4496-b629-8e8967171a75" width="100%" controls></video>
 </p>
 
 ## Installation
