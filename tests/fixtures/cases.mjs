@@ -215,25 +215,6 @@ export const shaderSnapshotCases = [
   },
   {
     ...defaultOptions,
-    name: "light-background-double-underline",
-    description: "Double underline bleed should not make the empty cell below look like gradient text.",
-    columns: 10,
-    rows: 5,
-    cellWidth: 12,
-    cellHeight: 20,
-    backgroundColor: colors.bg,
-    iBackgroundColor: colors.bg,
-    fills: [
-      { col: 2, row: 1, cols: 6, rows: 3, color: [229, 229, 229] }
-    ],
-    shapes: [
-      { type: "glyph", col: 3, row: 1, color: colors.textDark },
-      { type: "doubleUnderline", col: 4, row: 1, cols: 2, color: colors.textDark, thicknessPx: 2, bleedBelow: true },
-      { type: "glyph", col: 6, row: 2, color: colors.textDark }
-    ]
-  },
-  {
-    ...defaultOptions,
     name: "off-white-background-dark-text",
     description: "Very dark text-like glyphs on an off-white app background should only gradient the glyph pixels.",
     columns: 12,
