@@ -569,11 +569,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
     vec2 uv = fragCoord.xy / iResolution.xy;
     vec4 source = texture(iChannel0, uv);
+    vec4 sourceWithShadow = source;
     if (SHADOW_STRENGTH > 0.0) {
-        source = applyTextShadow(fragCoord, source);
+        sourceWithShadow = applyTextShadow(fragCoord, source);
     }
     if (GRADIENT_STRENGTH <= 0.0 && SHINE_STRENGTH <= 0.0) {
-        fragColor = source;
+        fragColor = sourceWithShadow;
         return;
     }
 
@@ -590,15 +591,15 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     vec3 background = estimateCellBackground(fragCoord.xy, source.rgb, rowHeight, cellWidth, iCurrentCursor.x);
     float text = textMask(source.rgb, background);
     if (text <= 0.0) {
-        fragColor = source;
+        fragColor = sourceWithShadow;
         return;
     }
     if (!shouldTreatText(source.rgb, background)) {
-        fragColor = source;
+        fragColor = sourceWithShadow;
         return;
     }
 
-    vec4 color = source;
+    vec4 color = sourceWithShadow;
 
     if (GRADIENT_STRENGTH > 0.0) {
         float rowPosition = 1.0 - fract((fragCoord.y + GRADIENT_Y_OFFSET_PX) / rowHeight);
