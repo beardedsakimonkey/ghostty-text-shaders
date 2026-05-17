@@ -22,16 +22,10 @@ Clone and copy the shaders into your Ghostty config directory (usually
 ```sh
 git clone https://github.com/beardedsakimonkey/ghostty-text-shaders.git
 mkdir -p ~/.config/ghostty
-cp ghostty-text-shaders/*.glsl ~/.config/ghostty/
+cp ghostty-text-shaders/text-gradient.glsl ~/.config/ghostty/
 ```
 
-Then append the custom-shader options to your Ghostty `config`:
-
-```sh
-cat ghostty-text-shaders/config >> ~/.config/ghostty/config
-```
-
-or just copy-paste this into your `config`:
+Then just copy-paste this into your Ghostty `config`:
 
 ```
 custom-shader = text-gradient.glsl
